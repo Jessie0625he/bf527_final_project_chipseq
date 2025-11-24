@@ -1,0 +1,305 @@
+---
+title: "TableS2A_Reproduce"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+```
+
+```{r}
+# Read in annotated ChIP-seq peaks
+peaks_annotated <- read.table("annotated_peaks.txt", header=TRUE, sep="\t", stringsAsFactors=FALSE, comment.char="")
+
+# Read RNA-seq results
+rna_deg <- read.table("GSE75070_MCF7_shRUNX1_shNS_RNAseq_log2_foldchange.txt.gz", header=TRUE, sep="\t", stringsAsFactors=FALSE)
+```
+
+```{r}
+# Only keep the relevant columns
+keep_cols <- c("Chr", "Start", "End", "Annotation", "Distance.to.TSS", "Gene.Name")
+peaks_clean <- peaks_annotated[, keep_cols]
+
+# Keep the relevant columns from RNA-seq
+rna_clean <- rna_deg[, c("genename", "log2FoldChange", "padj")]
+```
+
+```{r}
+# Standardize gene names
+peaks_clean$Gene.Name <- toupper(trimws(peaks_clean$Gene.Name))
+rna_clean$genename <- toupper(trimws(rna_clean$genename))
+```
+
+```{r}
+#clean NA
+rna_clean_filtered <- rna_clean[!is.na(rna_clean$padj) & !is.na(rna_clean$log2FoldChange), ]
+
+#paper threshold
+padj_thr <- 0.01
+log2fc_thr <- 1
+
+up_genes <- rna_clean_filtered$genename[rna_clean_filtered$padj < padj_thr & rna_clean_filtered$log2FoldChange > log2fc_thr]
+
+down_genes <- rna_clean_filtered$genename[rna_clean_filtered$padj < padj_thr & rna_clean_filtered$log2FoldChange < -log2fc_thr]
+#check how many up- and down-regulated genes
+length(up_genes)
+length(down_genes)
+```
+```{r}
+# TSS region: ±5kb from TSS
+peaks_TSS <- peaks_clean[abs(peaks_clean$Distance.to.TSS) <= 5000, ]
+
+# Gene body region: This typically means peaks within the gene body OR within ±20kb of the gene body
+# Since your annotation file likely uses standard ChIPseeker annotations, we need to be more precise
+# Let's assume peaks annotated to gene bodies AND within ±20kb of gene boundaries
+gene_body_annotations <- c("Exon", "Intron", "5'UTR", "3'UTR", "Promoter", "Downstream")
+
+# Extract peaks in gene body regions (within ±20kb of gene boundaries)
+# This is a simplified approach - you might need to adjust based on your annotation format
+peaks_gene_body <- peaks_clean[
+  grepl(paste(gene_body_annotations, collapse = "|"), peaks_clean$Annotation, ignore.case = TRUE) & 
+    abs(peaks_clean$Distance.to.TSS) <= 20000, ]
+```
+
+
+```{r}
+# Function to calculate binding statistics
+percent_bound <- function(gene_list, peaks_region){
+  gene_bound <- gene_list %in% peaks_region$Gene.Name
+  pct <- sum(gene_bound) / length(gene_list) * 100
+  return(list(count = sum(gene_bound), total = length(gene_list), pct = round(pct, 1)))
+}
+```
+
+```{r}
+# Calculate results
+res_up_TSS <- percent_bound(up_genes, peaks_TSS)
+res_up_gene_body <- percent_bound(up_genes, peaks_gene_body)
+res_down_TSS <- percent_bound(down_genes, peaks_TSS)
+res_down_gene_body <- percent_bound(down_genes, peaks_gene_body)
+```
+
+```{r}
+# Create data for plotting
+create_bar_data <- function(up_tss, up_gb, down_tss, down_gb) {
+  bind_rows(
+    data.frame(
+      regulation = "Up-regulated",
+      region = "+/- 5kb of TSS",
+      status = "Bound",
+      count = up_tss$count,
+      percent = up_tss$pct
+    ),
+    data.frame(
+      regulation = "Up-regulated", 
+      region = "+/- 5kb of TSS",
+      status = "Not Bound",
+      count = up_tss$total - up_tss$count,
+      percent = 100 - up_tss$pct
+    ),
+    data.frame(
+      regulation = "Down-regulated",
+      region = "+/- 5kb of TSS", 
+      status = "Bound",
+      count = down_tss$count,
+      percent = down_tss$pct
+    ),
+    data.frame(
+      regulation = "Down-regulated",
+      region = "+/- 5kb of TSS",
+      status = "Not Bound", 
+      count = down_tss$total - down_tss$count,
+      percent = 100 - down_tss$pct
+    ),
+    data.frame(
+      regulation = "Up-regulated",
+      region = "+/- 20kb of gene body",
+      status = "Bound",
+      count = up_gb$count,
+      percent = up_gb$pct
+    ),
+    data.frame(
+      regulation = "Up-regulated",
+      region = "+/- 20kb of gene body", 
+      status = "Not Bound",
+      count = up_gb$total - up_gb$count,
+      percent = 100 - up_gb$pct
+    ),
+    data.frame(
+      regulation = "Down-regulated",
+      region = "+/- 20kb of gene body",
+      status = "Bound",
+      count = down_gb$count,
+      percent = down_gb$pct
+    ),
+    data.frame(
+      regulation = "Down-regulated",
+      region = "+/- 20kb of gene body",
+      status = "Not Bound",
+      count = down_gb$total - down_gb$count, 
+      percent = 100 - down_gb$pct
+    )
+  )
+}
+
+bar_data_stacked <- create_bar_data(res_up_TSS, res_up_gene_body, res_down_TSS, res_down_gene_body)
+print(bar_data_stacked)
+```
+
+```{r}
+# Factor levels
+bar_data_stacked$region <- factor(bar_data_stacked$region, 
+                                  levels = c("+/- 5kb of TSS", "+/- 20kb of gene body"))
+bar_data_stacked$regulation <- factor(bar_data_stacked$regulation, 
+                                      levels = c("Up-regulated", "Down-regulated"))
+bar_data_stacked$status <- factor(bar_data_stacked$status, 
+                                  levels = c("Not Bound", "Bound"))
+```
+
+```{r}
+# Calculate label positions (inside the bars)
+bar_data_stacked <- bar_data_stacked %>%
+  group_by(regulation, region) %>%
+  mutate(
+    label_y = case_when(
+      status == "Bound" ~ percent / 2,
+      status == "Not Bound" ~ 100 - (percent / 2)
+    )
+  ) %>%
+  ungroup()
+```
+
+```{r}
+# Create the plot with labels inside bars
+ggplot(bar_data_stacked, aes(x = regulation, y = percent, fill = status)) +
+  geom_bar(stat = "identity", position = "stack", width = 0.7, color = "black") +
+  geom_text(aes(y = label_y, label = count), 
+            size = 5, color = "white", fontface = "bold") +
+  scale_fill_manual(
+    values = c("Not Bound" = "lightgray", "Bound" = "#ff4000"),
+    labels = c("Not Bound" = "Not bound", "Bound" = "RUNX1 bound")
+  ) +
+  scale_y_continuous(
+    expand = c(0, 0),
+    breaks = seq(0, 100, 10),
+    labels = function(x) paste0(x, "%")
+  ) +
+  facet_grid(. ~ region, switch = "x") +
+  theme_minimal(base_size = 17) +
+  labs(y = "Percentage of genes", x = NULL, fill = NULL) +
+  theme(
+    axis.text.x = element_text(size = 12, color = "black"),
+    axis.text.y = element_text(size = 12, color = "black"),
+    axis.title.y = element_text(size = 12, color = "black"),
+    strip.background = element_blank(),
+    strip.placement = "outside",
+    strip.text.x = element_text(size = 12, face = "bold"),
+    legend.position = "top",
+    legend.text = element_text(size = 12),
+    panel.spacing.x = unit(2, "lines")
+  )
+```
+```{r}
+# Import the reproducible peaks
+peaks <- read.table("reproducible_peaks_blacklist_filtered.bed", header=FALSE)
+```
+
+```{r}
+#Ensembl comprehensive gene annotation, MALAT1: Chr 11:65,497,606–65,508,073
+malat1_peaks <- peaks[peaks$V1 == "chr11" & peaks$V2 >= 65497606 & peaks$V3 <= 65508073, ]
+malat1_peaks
+# For NEAT1: Chr 11: 65,422,774-65,445,540 
+neat1_peaks <- peaks[peaks$V1 == "chr11" & peaks$V2 >= 65421774 & peaks$V3 <= 65455540, ]
+neat1_peaks
+```
+```{r}
+library(kableExtra)
+
+# List all flagstat files
+flagstat_files <- c(
+  "INPUT_rep1_flagstat.txt",
+  "INPUT_rep2_flagstat.txt", 
+  "IP_rep1_flagstat.txt",
+  "IP_rep2_flagstat.txt"
+)
+
+# Function to parse flagstat file for single-end data
+parse_flagstat <- function(filename) {
+  lines <- readLines(filename)
+  
+  # Total QC-passed reads (first line, first number)
+  total_reads <- as.numeric(gsub(" \\+.*", "", lines[1]))
+  
+  # Mapped reads (line 6: "28035027 + 0 mapped")
+  mapped_line <- lines[grepl(" mapped", lines)][1]  # Take first "mapped" line
+  mapped_reads <- as.numeric(gsub(" \\+.*", "", mapped_line))
+  
+  # Mapping rate (extract percentage from parentheses)
+  mapping_rate <- as.numeric(gsub(".*\\(|%.*", "", mapped_line))
+  
+  return(list(total_reads = total_reads, 
+              mapped_reads = mapped_reads,
+              mapping_rate = mapping_rate))
+}
+```
+
+
+```{r}
+# Parse all files
+results <- list()
+for (file in flagstat_files) {
+  if (file.exists(file)) {
+    sample_name <- gsub("_flagstat.txt", "", file)
+    stats <- parse_flagstat(file)
+    results[[sample_name]] <- stats
+    cat("Processed:", file, "\n")
+  } else {
+    cat("File not found:", file, "\n")
+  }
+}
+
+# Create data frame
+seq_stats <- do.call(rbind, lapply(names(results), function(sample) {
+  data.frame(
+    Sample = sample,
+    Biological_Replicate = ifelse(grepl("rep1", sample), "Rep1", "Rep2"),
+    Sample_Type = ifelse(grepl("INPUT", sample), "INPUT", "IP"),
+    Total_Reads = results[[sample]]$total_reads,
+    Mapped_Reads = results[[sample]]$mapped_reads,
+    Mapping_Rate = results[[sample]]$mapping_rate
+  )
+}))
+
+# View the raw data
+print("Sequencing Statistics:")
+seq_stats
+```
+
+
+```{r}
+library(dplyr)
+# Format numbers with commas for readability
+seq_stats_formatted <- seq_stats %>%
+  mutate(
+    Total_Reads = format(Total_Reads, big.mark = ",", scientific = FALSE),
+    Mapped_Reads = format(Mapped_Reads, big.mark = ",", scientific = FALSE),
+    Mapping_Rate = paste0(Mapping_Rate, "%")
+  )
+
+# Create final table
+final_table <- seq_stats_formatted[, c("Sample", "Biological_Replicate", "Total_Reads", "Mapped_Reads", "Mapping_Rate")] %>%
+  kable(align = c("l", "l", "r", "r", "r"),
+        col.names = c("Sample", "Biological Replicate", "Total Reads", "Mapped Reads", "Mapping Rate")) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover")) %>%
+  row_spec(seq(1, nrow(seq_stats), 2), background = "#f9f9f9") %>%
+  add_header_above(c(" " = 0, "Sequencing and Mapping Statistics" = 5))
+final_table
+```
+
+```{r}
+write.csv(seq_stats_formatted, "table_sequenced_and_mappedreads.csv", row.names = FALSE)
+```
+
+

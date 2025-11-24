@@ -1,0 +1,132 @@
+---
+title: "Figure S2C"
+output: html_document
+---
+
+```{r}
+library(VennDiagram)
+library(grid)
+library(GenomicRanges)
+```
+
+```{r}
+#Read files and convert to GenomicRanges for proper overlap calculation
+
+# Function to read HOMER peaks and return as GRanges
+read_homer_peaks_granges <- function(filename) {
+  peaks <- read.table(filename, sep = "\t", header = FALSE, 
+                     skip = 40, stringsAsFactors = FALSE)
+  colnames(peaks) <- c("PeakID", "chr", "start", "end", "strand", 
+                       "Normalized_Tag_Count", "focus_ratio", "findPeaks_Score",
+                       "Total_Tags", "Control_Tags", "Fold_Change_vs_Control",
+                       "p_value_vs_Control", "Fold_Change_vs_Local", 
+                       "p_value_vs_Local", "Clonal_Fold_Change")
+  return(peaks)
+}
+
+# Read the peak files
+rep1_peaks_df <- read_homer_peaks_granges("IP_rep1_vs_INPUT_rep1_peaks.txt")
+rep2_peaks_df <- read_homer_peaks_granges("IP_rep2_vs_INPUT_rep2_peaks.txt")
+
+cat("=== Peak Counts ===\n")
+cat("Replicate 1 total peaks:", nrow(rep1_peaks_df), "\n")
+cat("Replicate 2 total peaks:", nrow(rep2_peaks_df), "\n")
+
+# Convert to GRanges objects
+rep1_gr <- GRanges(
+  seqnames = rep1_peaks_df$chr,
+  ranges = IRanges(start = rep1_peaks_df$start, end = rep1_peaks_df$end)
+)
+
+rep2_gr <- GRanges(
+  seqnames = rep2_peaks_df$chr,
+  ranges = IRanges(start = rep2_peaks_df$start, end = rep2_peaks_df$end)
+)
+```
+```{r}
+# Calculate genomic overlap (any base pair overlap)
+
+# Find overlaps - this gives us which peaks overlap
+overlap_results <- findOverlaps(rep1_gr, rep2_gr)
+
+# Get the indices of overlapping peaks from rep1
+overlap_rep1_indices <- unique(queryHits(overlap_results))
+
+# Get the actual peak coordinates that overlap
+overlap_peaks_rep1 <- rep1_peaks_df[overlap_rep1_indices, ]
+overlap_peak_ids <- paste(overlap_peaks_rep1$chr, overlap_peaks_rep1$start, overlap_peaks_rep1$end, sep = "_")
+
+cat("\n=== Genomic Overlap Results ===\n")
+cat("Overlapping peaks (any bp overlap):", length(overlap_peak_ids), "\n")
+```
+```{r}
+# Create Venn diagram with proper overlap sets
+
+# We need to create three sets for the Venn diagram:
+# 1. rep1_only: peaks in rep1 but not overlapping rep2
+# 2. rep2_only: peaks in rep2 but not overlapping rep1  
+# 3. overlap: peaks that overlap between rep1 and rep2
+
+# Get all peak identifiers
+rep1_peak_ids <- paste(rep1_peaks_df$chr, rep1_peaks_df$start, rep1_peaks_df$end, sep = "_")
+rep2_peak_ids <- paste(rep2_peaks_df$chr, rep2_peaks_df$start, rep2_peaks_df$end, sep = "_")
+
+# Find which rep1 peaks overlap with rep2 (using genomic coordinates)
+overlap_results <- findOverlaps(rep1_gr, rep2_gr)
+overlapping_rep1_indices <- unique(queryHits(overlap_results))
+
+# Create the three sets:
+rep1_only_indices <- setdiff(1:length(rep1_gr), overlapping_rep1_indices)
+rep1_only_peaks <- rep1_peak_ids[rep1_only_indices]
+
+# For rep2, find which peaks overlap with rep1
+overlap_results_rep2 <- findOverlaps(rep2_gr, rep1_gr)
+overlapping_rep2_indices <- unique(queryHits(overlap_results_rep2))
+rep2_only_indices <- setdiff(1:length(rep2_gr), overlapping_rep2_indices)
+rep2_only_peaks <- rep2_peak_ids[rep2_only_indices]
+
+# Overlapping peaks (from rep1 perspective)
+overlap_peaks <- rep1_peak_ids[overlapping_rep1_indices]
+```
+
+```{r}
+# Prepare data for Venn Diagram
+n_rep1_only <- length(rep1_only_peaks)
+n_rep2_only <- length(rep2_only_peaks) 
+n_overlap <- length(overlap_peaks)
+
+# Create a Venn diagram with exact numbers
+venn_plot <- draw.pairwise.venn(
+  area1 = n_rep1_only + n_overlap,  # Total rep1
+  area2 = n_rep2_only + n_overlap,  # Total rep2
+  cross.area = n_overlap,           # Overlap
+  
+  # Category names (Replicate 1, Replicate 2)
+  category = c(paste("Rep 1\n(", n_rep1_only + n_overlap, " peaks)", sep = ""),
+               paste("Rep 2\n(", n_rep2_only + n_overlap, " peaks)", sep = "")),
+  fill = c("#D5EBED", "#B1C2DD"),
+  alpha = 0.6,
+  cex = 1.2,
+  cat.cex = 1.1,
+  cat.pos = c(-30, 10),
+  cat.dist = 0.05,
+  print.mode = c("raw", "percent")
+)
+
+grid.draw(venn_plot)
+```
+
+```{r}
+# Save the Venn diagram
+png("ChIPseq_venn_diagram_correct.png", width = 850, height = 600, res = 180)
+grid.draw(venn_plot)
+dev.off()
+
+cat("\n=== Final Results ===\n")
+cat("Replicate 1 total peaks:", length(rep1_peak_ids), "\n")
+cat("Replicate 2 total peaks:", length(rep2_peak_ids), "\n")
+cat("Genomic overlap (any bp):", length(overlap_peaks), "\n")
+cat("Reproducibility rate:", round(length(overlap_peaks) / length(rep1_peak_ids) * 100, 1), "%\n")
+
+```
+

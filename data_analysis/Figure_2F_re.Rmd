@@ -1,5 +1,5 @@
 ---
-title: "Figure_2F_re"
+title: "RNA-seq and ChIp-seq"
 output: html_document
 ---
 ```{r}

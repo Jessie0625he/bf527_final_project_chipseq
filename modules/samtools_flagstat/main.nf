@@ -17,8 +17,4 @@ process SAMTOOLS_FLAGSTAT {
     samtools flagstat ${bam} > ${name}_flagstat.txt
     """
 
-    stub:
-    """
-    touch ${name}_flagstat.txt
-    """
 }

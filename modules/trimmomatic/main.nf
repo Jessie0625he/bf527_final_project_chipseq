@@ -9,8 +9,8 @@ process TRIM {
     tuple val(name), path(read)
 
     output:
-    tuple val(name),path("*_trimmed.fastq.gz"), emit:trimmed_reads
-    tuple val(name), path("*.log"), emit:log
+    tuple val(name),path("${name}_trimmed.fastq.gz"), emit:trimmed_reads
+    tuple val(name), path("${name}_trim.log"), emit:log
 
     shell:
     """
@@ -20,14 +20,8 @@ process TRIM {
         ${read} \
         ${name}_trimmed.fastq.gz \
         ILLUMINACLIP:${params.adapter_fa}:2:30:10:2:True \
-        LEADING:3 TRAILING:3 \
+        LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36 \
         2> ${name}_trim.log
     
-    """
-    
-    stub:
-    """
-    touch ${sample_id}_stub_trim.log
-    touch ${sample_id}_stub_trimmed.fastq.gz
     """
 }

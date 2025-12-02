@@ -7,21 +7,16 @@ process FIND_MOTIFS_GENOME {
     publishDir params.outdir, mode: "copy"
 
     input:
-    path(filtered_bed)
-    path(genome)
+    tuple val(name), path(filtered_bed)  // name can be sample name or condition label
+    path genome
 
 
     output:
-    path("motifs")
+    tuple val(name), path("${name}_motifs"), emit: motifs
 
     script:
     """
-    findMotifsGenome.pl $filtered_bed $genome motifs/ -size 200 -mask
-    """
-
-    stub:
-    """
-    mkdir motifs
+    findMotifsGenome.pl $filtered_bed $genome ${name}_motifs -size 200 -mask -p $task.cpus
     """
 }
 

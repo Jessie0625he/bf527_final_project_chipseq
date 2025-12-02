@@ -7,7 +7,7 @@ process BOWTIE2_ALIGN {
     publishDir params.outdir, mode:'copy'
 
     input:
-    tuple val(name), path(trimmed_reads)
+    tuple val(name), path(read)
     tuple val(genome), path(index)
 
     output:
@@ -15,11 +15,6 @@ process BOWTIE2_ALIGN {
 
     shell:
     """ 
-    bowtie2 -x bowtie2_index/${genome} -U ${trimmed_reads} | samtools view -bS - > ${name}.bam
-    """
-
-    stub:
-    """
-    touch ${name}.bam
+    bowtie2 -x bowtie2_index/${genome} -U ${read} | samtools view -bS - > ${name}.bam
     """
 }

@@ -17,8 +17,4 @@ process PLOTPROFILE {
     plotProfile -m $gz -o ${name}_signal_coverage.png
     """
 
-    stub:
-    """
-    touch ${sample_id}_signal_coverage.png
-    """
 }

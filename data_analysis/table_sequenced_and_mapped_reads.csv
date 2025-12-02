@@ -1,5 +1,0 @@
-"Sample","Biological_Replicate","Sample_Type","Total_Reads","Mapped_Reads","Mapping_Rate"
-"INPUT_rep1","Rep1","INPUT","30,042,316","28,741,830","95.67%"
-"INPUT_rep2","Rep2","INPUT","10,890,409","10,108,857","92.82%"
-"IP_rep1","Rep1","IP","29,050,672","28,035,027","96.5%"
-"IP_rep2","Rep2","IP","28,968,291","28,413,305","98.08%"

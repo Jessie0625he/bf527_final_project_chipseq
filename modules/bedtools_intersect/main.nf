@@ -7,19 +7,20 @@ process BEDTOOLS_INTERSECT {
     publishDir params.outdir, mode:'copy'
 
     input:
-    tuple val(rep1_peaks), path(bed1)
-    tuple val(rep2_peaks), path(bed2)
+    path peaks_ph65  // BRD4_pH6.5_LPS peaks
+    path peaks_ph74  // BRD4_pH7.4_LPS peaks
 
     output:
-    path("reproducible_peaks.bed")
+    path "ph65_specific.bed", emit: ph65_bed
+    path "ph74_specific.bed", emit: ph74_bed
+    path "common_peaks.bed", emit: common
 
     shell:
     """ 
-    bedtools intersect -a $bed1 -b $bed2 -f 0.0001 -r > reproducible_peaks.bed
-    """
 
-    stub: 
-    """
-    touch repr_peaks.bed
+    bedtools intersect -a $peaks_ph65 -b $peaks_ph74 -v > ph65_specific.bed
+    bedtools intersect -a $peaks_ph74 -b $peaks_ph65 -v > ph74_specific.bed
+    bedtools intersect -a $peaks_ph65 -b $peaks_ph74 -u > common_peaks.bed
+
     """
 }

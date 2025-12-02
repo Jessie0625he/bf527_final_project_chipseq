@@ -7,21 +7,16 @@ process ANNOTATE {
     publishDir params.outdir, mode:'copy'
 
     input:
-    path(bed)
-    path(genome)
-    path(gtf)
+    tuple val(name), path(bed)  // name can be sample name or condition label
+    path genome
+    path gtf
 
     output:
-    path("annotated_peaks.txt")
+    tuple val(name), path("${name}_annotated_peaks.txt"), emit: annotated
 
     shell:
     """
-    annotatePeaks.pl $bed $genome -gtf $gtf  > annotated_peaks.txt
-    """
-
-    stub:
-    """
-    touch annotated_peaks.txt
+    annotatePeaks.pl $bed $genome -gtf $gtf > ${name}_annotated_peaks.txt
     """
 }
 

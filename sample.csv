@@ -1,0 +1,5 @@
+name,path
+INPUT_pH6.5_LPS,/projectnb/bf527/students/xjin4/final_project/ChIP-seq/materials/SRR29313274.fastq
+INPUT_pH7.4_LPS,/projectnb/bf527/students/xjin4/final_project/ChIP-seq/materials/SRR29313275.fastq
+BRD4_pH6.5_LPS,/projectnb/bf527/students/xjin4/final_project/ChIP-seq/materials/SRR29313271.fastq
+BRD4_pH7.4_LPS,/projectnb/bf527/students/xjin4/final_project/ChIP-seq/materials/SRR29313272.fastq

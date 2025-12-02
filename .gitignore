@@ -6,3 +6,4 @@ refs/
 .nextflow*
 *.gz
 *.img
+materials/

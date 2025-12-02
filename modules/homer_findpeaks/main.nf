@@ -15,12 +15,7 @@ process FINDPEAKS {
 
     script:
     """
-    findPeaks $ip_tagdir -style factor -F 1.5 -P 0.001 -L 1.5 -LP 0.001 -minDist 200 -size 300 -inputSize 600 -i $input_tagdir -o ${ip_name}_vs_${input_name}_peaks.txt
-    """
-    // -F 1.2 -P 0.01 -L 1.1 -LP 0.01
-    stub:
-    """
-    touch ${rep}_peaks.txt
+    findPeaks $ip_tagdir -style factor -i $input_tagdir -o ${ip_name}_vs_${input_name}_peaks.txt 
     """
 }
 

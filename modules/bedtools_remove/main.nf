@@ -7,15 +7,14 @@ process BEDTOOLS_REMOVE {
     publishDir params.outdir, mode:'copy'
 
     input:
-    path(peaks_bed)
-    path(blacklist)
+    tuple val(name), path(peaks_bed)  // name can be sample name or condition label
+    path blacklist
 
     output:
-    path("${peaks_bed.baseName}_blacklist_filtered.bed")
-
+    tuple val(name), path("${name}_blacklist_filtered.bed"), emit: cleaned
     shell:
     """ 
-    bedtools subtract -a $peaks_bed -b $blacklist -A > ${peaks_bed.baseName}_blacklist_filtered.bed
+    bedtools subtract -a $peaks_bed -b $blacklist -A > ${name}_blacklist_filtered.bed
     """
 
     stub:
